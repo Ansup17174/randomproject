@@ -13,12 +13,17 @@ class Address(models.Model):
 
 class Product(models.Model):
     id = models.UUIDField(primary_key=True, editable=False, default=uuid4)
-    name = models.CharField(max_length=50)
+    name = models.CharField(max_length=50, unique=True)
     quantity = models.PositiveIntegerField()
     unit_price = models.DecimalField(max_digits=100, decimal_places=2, validators=[MinValueValidator(0)])
-    vat_letter = models.CharField(max_length=1)
-    on_dicsount = models.BooleanField(default=False)
-    discount_value = models.DecimalField(max_digits=100, decimal_places=2, validators=[MinValueValidator(0)])
+    vat_type = models.CharField(max_length=1)
+    on_discount = models.BooleanField(default=False)
+    discount_value = models.DecimalField(
+        max_digits=100,
+        decimal_places=2,
+        validators=[MinValueValidator(0)],
+        default=0
+    )
 
 
 class Receipt(models.Model):
@@ -26,7 +31,13 @@ class Receipt(models.Model):
     header = models.CharField(max_length=50, null=True, blank=True)
     company_name = models.CharField(max_length=150)
     company_address = models.ForeignKey(Address, on_delete=models.PROTECT, related_name="receipts")
-    sales_point = models.ForeignKey(Address, on_delete=models.PROTECT, related_name="receipts")
+    sales_point = models.ForeignKey(
+        Address,
+        on_delete=models.PROTECT,
+        related_name="receipts",
+        null=True,
+        blank=True
+    )
     nip_number = models.IntegerField(max_length=10)
     print_number = models.PositiveIntegerField()
     date_printed = models.DateTimeField()
@@ -34,4 +45,3 @@ class Receipt(models.Model):
     number = models.PositiveIntegerField()
     checkout_number = models.CharField(max_length=50)
     buyer_nip = models.IntegerField(max_length=10, null=True, blank=True)
-
