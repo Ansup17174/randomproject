@@ -1,8 +1,20 @@
 from django.db import transaction
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
-from .models import Product, Address, Receipt
+from .models import Product, Address, Receipt, Company
 from collections import defaultdict
+
+
+class CompanySerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Company
+        fields = "__all__"
+
+    def create(self, validated_data):
+        user = self.context['request'].user
+        company = Company.objects.create(**validated_data, owner=user)
+        return company
 
 
 class ProductSerializer(serializers.ModelSerializer):

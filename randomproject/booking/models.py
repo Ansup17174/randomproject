@@ -1,6 +1,10 @@
 from django.db import models
 from uuid import uuid4
+from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator, MaxValueValidator
+
+
+User = get_user_model()
 
 
 class Address(models.Model):
@@ -9,6 +13,13 @@ class Address(models.Model):
     post_code = models.CharField(max_length=6)
     city = models.CharField(max_length=36)
     country = models.CharField(max_length=42)
+
+
+class Company(models.Model):
+    id = models.UUIDField(primary_key=True, editable=False, default=uuid4)
+    owner = models.ForeignKey(User, on_delete=models.PROTECT, related_name="companies")
+    name = models.CharField(max_length=150, unique=True)
+    company_address = models.ForeignKey(Address, on_delete=models.PROTECT, related_name="companies")
 
 
 class Receipt(models.Model):
