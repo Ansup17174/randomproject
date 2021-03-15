@@ -1,10 +1,13 @@
 from django.db import models
 from uuid import uuid4
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 
-User = get_user_model()
+class CustomUser(AbstractUser):
+    date_of_birth = models.DateField()
+    phone = models.CharField(max_length=9)
 
 
 class Address(models.Model):
@@ -15,11 +18,15 @@ class Address(models.Model):
     country = models.CharField(max_length=42)
 
 
+User = get_user_model()
+
+
 class Company(models.Model):
     id = models.UUIDField(primary_key=True, editable=False, default=uuid4)
     owner = models.ForeignKey(User, on_delete=models.PROTECT, related_name="companies")
     name = models.CharField(max_length=150, unique=True)
     company_address = models.ForeignKey(Address, on_delete=models.PROTECT, related_name="companies")
+    nip_number = models.PositiveIntegerField(validators=[MaxValueValidator(9999999999)])
 
 
 class Receipt(models.Model):
@@ -34,13 +41,13 @@ class Receipt(models.Model):
         blank=True,
         related_name="receipts"
     )
-    nip_number = models.IntegerField(validators=[MaxValueValidator(9999999999)])
+    nip_number = models.CharField(max_length=10)
     print_number = models.PositiveIntegerField()
     date_printed = models.DateTimeField()
     currency = models.CharField(max_length=10)
     receipt_number = models.PositiveIntegerField()
     checkout_number = models.CharField(max_length=50, null=True, blank=True)
-    buyer_nip = models.PositiveIntegerField(null=True, blank=True, validators=[MaxValueValidator(9999999999)])
+    buyer_nip = models.CharField(max_length=10, null=True, blank=True)
 
 
 class Product(models.Model):
