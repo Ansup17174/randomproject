@@ -1,7 +1,10 @@
-from django.urls import path
-from .views import HelloView
+from django.urls import path, include
+from .views import ReceiptViewSet
+from rest_framework.routers import DefaultRouter
+receipt_router = DefaultRouter()
+receipt_router.register(prefix="receipt", viewset=ReceiptViewSet, basename="receipt")
 
 
 urlpatterns = [
-    path("hello/", HelloView.as_view(), name="hello")
+    path("", include(receipt_router.urls))
 ]

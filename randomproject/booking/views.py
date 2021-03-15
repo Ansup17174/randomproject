@@ -1,8 +1,9 @@
-from rest_framework.views import APIView
-from rest_framework.response import Response
+from rest_framework.viewsets import ModelViewSet
+from .serializers import ReceiptSerializer
+from .models import Receipt
 
 
-class HelloView(APIView):
+class ReceiptViewSet(ModelViewSet):
 
-    def get(self, request):
-        return Response({"detail": "Hello"})
+    serializer_class = ReceiptSerializer
+    queryset = Receipt.objects.all()
