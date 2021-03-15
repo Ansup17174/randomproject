@@ -32,6 +32,7 @@ ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
     'booking',
+    'users',
     'rest_framework',
     'django.contrib.sites',
     'django.contrib.admin',
@@ -121,11 +122,11 @@ REST_FRAMEWORK = {
 }
 
 REST_AUTH_SERIALIZERS = {
-    'USER_DETAILS_SERIALIZER': 'booking.serializers.CustomUserDetailsSerializer'
+    'USER_DETAILS_SERIALIZER': 'users.serializers.CustomUserDetailsSerializer'
 }
 
 REST_AUTH_REGISTER_SERIALIZERS = {
-    'REGISTER_SERIALIZER': 'booking.serializers.CustomRegisterSerializer'
+    'REGISTER_SERIALIZER': 'users.serializers.CustomRegisterSerializer'
 }
 
 REST_USE_JWT = True
@@ -133,9 +134,9 @@ REST_USE_JWT = True
 ACCOUNT_AUTHENTICATION_METHOD = 'username'
 ACCOUNT_EMAIL_REQUIRED = True
 ACCOUNT_EMAIL_VERIFICATION = 'none'
-ACCOUNT_ADAPTER = 'booking.adapters.CustomAccountAdapter'
+ACCOUNT_ADAPTER = 'users.adapters.CustomAccountAdapter'
 
-AUTH_USER_MODEL = 'booking.CustomUser'
+AUTH_USER_MODEL = 'users.CustomUser'
 
 # Internationalization
 # https://docs.djangoproject.com/en/3.1/topics/i18n/

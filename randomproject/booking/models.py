@@ -1,13 +1,7 @@
 from django.db import models
 from uuid import uuid4
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, MaxValueValidator
-
-
-class CustomUser(AbstractUser):
-    date_of_birth = models.DateField()
-    phone = models.CharField(max_length=9)
 
 
 class Address(models.Model):
