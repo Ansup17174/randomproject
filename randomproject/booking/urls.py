@@ -6,5 +6,7 @@ receipt_router.register(prefix="receipt", viewset=ReceiptViewSet, basename="rece
 
 
 urlpatterns = [
+    path("auth/registration/", include('dj_rest_auth.registration.urls')),
+    path("auth/", include('dj_rest_auth.urls')),
     path("", include(receipt_router.urls))
 ]
