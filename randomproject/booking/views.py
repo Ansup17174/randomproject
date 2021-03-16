@@ -13,3 +13,6 @@ class CompanyViewSet(ModelViewSet):
 
     serializer_class = CompanySerializer
     queryset = Company.objects.all()
+
+
+# TODO company viewset authentication

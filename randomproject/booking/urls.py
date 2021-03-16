@@ -10,8 +10,6 @@ company_router.register(prefix="company", viewset=CompanyViewSet, basename="comp
 
 
 urlpatterns = [
-    path("auth/registration/", include('dj_rest_auth.registration.urls')),
-    path("auth/", include('dj_rest_auth.urls')),
     path("", include(receipt_router.urls)),
     path("", include(company_router.urls))
 ]
