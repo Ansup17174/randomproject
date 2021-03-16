@@ -2,12 +2,12 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
-from .models import ReceiptProduct, Address, Receipt, Company
+from .models import ReceiptProduct, Address, Receipt, Company, InvoiceProduct, Invoice
 from collections import defaultdict
 from django.utils import timezone
 
 
-class ProductSerializer(serializers.ModelSerializer):
+class ReceiptProductSerializer(serializers.ModelSerializer):
 
     def validate_vat_type(self, vat_type):
         if vat_type.upper() not in "ABCDE":
@@ -30,6 +30,26 @@ class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReceiptProduct
         exclude = ("receipt",)
+
+
+class InvoiceProductSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = InvoiceProduct
+        exclude = ("invoice",)
+
+    price = serializers.SerializerMethodField("get_price")
+    total_discount_value = serializers.SerializerMethodField("get_total_discount_value")
+    full_price = serializers.SerializerMethodField("get_full_price")
+
+    def get_price(self, product):
+        return round(product.unit_price * product.quantity, 2)
+
+    def get_total_discount_value(self, product):
+        return round(product.quantity * product.discount_value, 2)
+
+    def get_full_price(self, product):
+        return round(product.quantity * (product.unit_price - product.discount_value), 2)
 
 
 class AddressSerializer(serializers.ModelSerializer):
@@ -77,7 +97,7 @@ class ReceiptSerializer(serializers.ModelSerializer):
 
     company = CompanySerializer(read_only=True)
     company_name = serializers.CharField(max_length=150, write_only=True)
-    products = ProductSerializer(many=True)
+    products = ReceiptProductSerializer(many=True)
     total_price = serializers.SerializerMethodField("get_total_price")
     tax_values = serializers.SerializerMethodField("get_tax_values")
     total_tax = serializers.SerializerMethodField("get_total_tax")
@@ -91,7 +111,7 @@ class ReceiptSerializer(serializers.ModelSerializer):
         products = validated_data.pop("products")
         company_name = validated_data.pop("company_name")
         with transaction.atomic():
-            last_receipt = Receipt.objects.order_by("-print_number").first()
+            last_receipt = Receipt.objects.filter(company__name=company_name).order_by("-print_number").first()
             print_number = 1
             if last_receipt is not None:
                 now = timezone.now()
@@ -134,3 +154,44 @@ class ReceiptSerializer(serializers.ModelSerializer):
     class Meta:
         model = Receipt
         fields = "__all__"
+
+
+class InvoiceSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Invoice
+        exclude = ("seller",)
+
+    products = InvoiceProductSerializer(many=True)
+    company = CompanySerializer(read_only=True)
+    company_name = serializers.CharField(max_length=150)
+
+    def create(self, validated_data):
+        products = validated_data.pop("products")
+        company_name = validated_data.pop("company_name")
+        with transaction.atomic():
+            company = get_object_or_404(Company, name=company_name)
+            now = timezone.now()
+            last_invoice = Invoice.objects.filter(seller=company).order_by("-date_created").first()
+            invoice_count = 1
+            if last_invoice is not None:
+                year = last_invoice.date_created.year
+                month = last_invoice.date_created.month
+                if now.year == year and now.month == month:
+                    last_invoice_count = int(last_invoice.invoice_number.split("/")[-1])
+                    invoice_count = last_invoice_count + 1
+            invoice_number = f"FV/{now.year}/{now.month}/{invoice_count}"
+            invoice = Invoice.objects.create(
+                **validated_data,
+                invoice_number=invoice_number,
+                seller=company,
+            )
+            for product in products:
+                InvoiceProduct.objects.create(**product, invoice=invoice)
+            invoice.refresh_from_db()
+        return invoice
+
+    def validate_products(self, products):
+        if not len(products):
+            raise ValidationError("This field is required")
+        return products

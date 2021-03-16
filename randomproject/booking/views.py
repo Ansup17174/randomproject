@@ -1,6 +1,6 @@
 from rest_framework.viewsets import ModelViewSet
-from .serializers import ReceiptSerializer, CompanySerializer
-from .models import Receipt, Company
+from .serializers import ReceiptSerializer, CompanySerializer, InvoiceSerializer
+from .models import Receipt, Company, Invoice
 
 
 class ReceiptViewSet(ModelViewSet):
@@ -17,3 +17,11 @@ class CompanyViewSet(ModelViewSet):
 
     def get_queryset(self):
         return Company.objects.filter(owner=self.request.user)
+
+
+class InvoiceViewSet(ModelViewSet):
+
+    serializer_class = InvoiceSerializer
+
+    def get_queryset(self):
+        return Invoice.objects.filter(company__owner=self.request.user)

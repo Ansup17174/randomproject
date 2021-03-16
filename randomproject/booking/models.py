@@ -37,7 +37,7 @@ class Person(models.Model):
 class Receipt(models.Model):
     id = models.UUIDField(primary_key=True, editable=False, default=uuid4)
     header = models.CharField(max_length=50, null=True, blank=True)
-    company = models.ForeignKey(Company, on_delete=models.CASCADE)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT)
     sales_point = models.ForeignKey(
         Address,
         on_delete=models.PROTECT,
@@ -61,7 +61,7 @@ class Invoice(models.Model):
     buyer = GenericForeignKey('content_type', 'object_id')
     date_created = models.DateField(auto_now_add=True)
     date_finished = models.DateField()
-    invoice_number = models.CharField(max_length=20)
+    invoice_number = models.CharField(max_length=20, editable=False)
 
 
 class ReceiptProduct(models.Model):
@@ -84,6 +84,7 @@ class ReceiptProduct(models.Model):
 
 class InvoiceProduct(models.Model):
     id = models.UUIDField(primary_key=True, editable=False, default=uuid4)
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE)
     name = models.CharField(max_length=200)
     unit = models.CharField(max_length=15)
     quantity = models.DecimalField(max_digits=20, decimal_places=3, validators=[MinValueValidator(0)])
@@ -95,4 +96,3 @@ class InvoiceProduct(models.Model):
         default=0
     )
     vat_tax = models.DecimalField(max_digits=5, decimal_places=2, validators=[MinValueValidator(0)])
-
