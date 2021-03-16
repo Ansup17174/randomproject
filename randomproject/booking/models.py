@@ -26,7 +26,7 @@ class Company(models.Model):
 class Receipt(models.Model):
     id = models.UUIDField(primary_key=True, editable=False, default=uuid4)
     header = models.CharField(max_length=50, null=True, blank=True)
-    company_name = models.CharField(max_length=150)
+    company = models.ForeignKey(Company, on_delete=models.CASCADE)
     company_address = models.ForeignKey(Address, on_delete=models.PROTECT)
     sales_point = models.ForeignKey(
         Address,

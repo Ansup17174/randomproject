@@ -5,23 +5,6 @@ from .models import Product, Address, Receipt, Company
 from collections import defaultdict
 
 
-class CompanySerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = Company
-        fields = "__all__"
-
-    def validate_nip_numberO(self, nip_number):
-        if not nip_number.isnumeric():
-            raise ValidationError("Invalid NIP number")
-        return nip_number
-
-    def create(self, validated_data):
-        user = self.context['request'].user
-        company = Company.objects.create(**validated_data, owner=user)
-        return company
-
-
 class ProductSerializer(serializers.ModelSerializer):
 
     def validate_vat_type(self, vat_type):
@@ -52,6 +35,39 @@ class AddressSerializer(serializers.ModelSerializer):
     class Meta:
         model = Address
         fields = "__all__"
+
+
+class CompanySerializer(serializers.ModelSerializer):
+
+    company_address = AddressSerializer()
+
+    class Meta:
+        model = Company
+        fields = "__all__"
+
+    def validate_nip_number(self, nip_number):
+        if not nip_number.isnumeric():
+            raise ValidationError("Invalid NIP number")
+        return nip_number
+
+    def create(self, validated_data):
+        user = self.context['request'].user
+        address = validated_data.pop("company_address")
+        company_address = Address.objects.create(**address)
+        company = Company.objects.create(**validated_data, owner=user, company_address=company_address)
+        return company
+
+    def update(self, instance, validated_data):
+        address = validated_data.pop("company_address")
+        if address is not None:
+            company_address = instance.company_address
+            for name, value in address.items():
+                setattr(company_address, name, value)
+            company_address.save()
+        for name, value in validated_data.items():
+            setattr(instance, name, value)
+        instance.save()
+        return instance
 
 
 class ReceiptSerializer(serializers.ModelSerializer):
