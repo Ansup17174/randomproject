@@ -2,7 +2,7 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
-from .models import Product, Address, Receipt, Company
+from .models import ReceiptProduct, Address, Receipt, Company
 from collections import defaultdict
 from django.utils import timezone
 
@@ -28,7 +28,7 @@ class ProductSerializer(serializers.ModelSerializer):
     full_price = serializers.SerializerMethodField("get_full_price")
 
     class Meta:
-        model = Product
+        model = ReceiptProduct
         exclude = ("receipt",)
 
 
@@ -95,8 +95,8 @@ class ReceiptSerializer(serializers.ModelSerializer):
             print_number = 1
             if last_receipt is not None:
                 now = timezone.now()
-                date_printed = last_receipt.date_printed
-                if not now.today().date() != date_printed.date():
+                date_created = last_receipt.date_created
+                if not now.today().date() != date_created.date():
                     print_number = last_receipt.print_number + 1
             company = get_object_or_404(Company, name=company_name)
             receipt = Receipt.objects.create(
@@ -106,7 +106,7 @@ class ReceiptSerializer(serializers.ModelSerializer):
                 receipt_number=print_number
             )
             for product in products:
-                Product.objects.create(**product, receipt=receipt)
+                ReceiptProduct.objects.create(**product, receipt=receipt)
             receipt.refresh_from_db()
         return receipt
 
