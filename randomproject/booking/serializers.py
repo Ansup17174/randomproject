@@ -1,8 +1,10 @@
 from django.db import transaction
+from django.shortcuts import get_object_or_404
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 from .models import Product, Address, Receipt, Company
 from collections import defaultdict
+from django.utils import timezone
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -43,10 +45,10 @@ class CompanySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Company
-        fields = "__all__"
+        exclude = ("owner",)
 
     def validate_nip_number(self, nip_number):
-        if not nip_number.isnumeric():
+        if not nip_number.isnumeric() or len(nip_number) != 10:
             raise ValidationError("Invalid NIP number")
         return nip_number
 
@@ -59,18 +61,25 @@ class CompanySerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         address = validated_data.pop("company_address")
-        if address is not None:
-            company_address = instance.company_address
-            for name, value in address.items():
-                setattr(company_address, name, value)
-            company_address.save()
-        for name, value in validated_data.items():
-            setattr(instance, name, value)
-        instance.save()
+        with transaction.atomic():
+            if address is not None:
+                company_address = instance.company_address
+                for name, value in address.items():
+                    setattr(company_address, name, value)
+                company_address.save()
+            for name, value in validated_data.items():
+                setattr(instance, name, value)
+            instance.save()
         return instance
 
 
 class ReceiptSerializer(serializers.ModelSerializer):
+
+    company_name = serializers.CharField(max_length=150, write_only=True)
+    products = ProductSerializer(many=True)
+    total_price = serializers.SerializerMethodField("get_total_price")
+    tax_values = serializers.SerializerMethodField("get_tax_values")
+    total_tax = serializers.SerializerMethodField("get_total_tax")
 
     def validate_products(self, products):
         if not len(products):
@@ -79,10 +88,22 @@ class ReceiptSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         products = validated_data.pop("products")
-        company_address = validated_data.pop("company_address")
+        company_name = validated_data.pop("company_name")
         with transaction.atomic():
-            address = Address.objects.create(**company_address)
-            receipt = Receipt.objects.create(**validated_data, company_address=address)
+            last_receipt = Receipt.objects.order_by("-print_number").first()
+            print_number = 1
+            if last_receipt is not None:
+                now = timezone.now()
+                date_printed = last_receipt.date_printed
+                if not now.today().date() != date_printed.date():
+                    print_number = last_receipt.print_number + 1
+            company = get_object_or_404(Company, name=company_name)
+            receipt = Receipt.objects.create(
+                **validated_data,
+                company=company,
+                print_number=print_number,
+                receipt_number=print_number
+            )
             for product in products:
                 Product.objects.create(**product, receipt=receipt)
             receipt.refresh_from_db()
@@ -109,12 +130,7 @@ class ReceiptSerializer(serializers.ModelSerializer):
             del tax_values["E"]
         return round(sum(tax_values.values()), 2)
 
-    total_price = serializers.SerializerMethodField("get_total_price")
-    tax_values = serializers.SerializerMethodField("get_tax_values")
-    total_tax = serializers.SerializerMethodField("get_total_tax")
-    products = ProductSerializer(many=True)
-    company_address = AddressSerializer()
-
     class Meta:
         model = Receipt
         fields = "__all__"
+        read_only_fields = ("company",)

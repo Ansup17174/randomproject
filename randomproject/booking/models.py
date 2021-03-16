@@ -1,10 +1,11 @@
 from django.db import models
 from uuid import uuid4
 from django.contrib.auth import get_user_model
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.validators import MinValueValidator
 
 
 class Address(models.Model):
+    id = models.UUIDField(primary_key=True, editable=False, default=uuid4)
     street = models.CharField(max_length=32)
     building_number = models.CharField(max_length=10)
     post_code = models.CharField(max_length=6)
@@ -20,14 +21,13 @@ class Company(models.Model):
     owner = models.ForeignKey(User, on_delete=models.PROTECT, related_name="companies")
     name = models.CharField(max_length=150, unique=True)
     company_address = models.ForeignKey(Address, on_delete=models.PROTECT, related_name="companies")
-    nip_number = models.PositiveIntegerField(validators=[MaxValueValidator(9999999999)])
+    nip_number = models.CharField(max_length=10)
 
 
 class Receipt(models.Model):
     id = models.UUIDField(primary_key=True, editable=False, default=uuid4)
     header = models.CharField(max_length=50, null=True, blank=True)
     company = models.ForeignKey(Company, on_delete=models.CASCADE)
-    company_address = models.ForeignKey(Address, on_delete=models.PROTECT)
     sales_point = models.ForeignKey(
         Address,
         on_delete=models.PROTECT,
@@ -35,11 +35,10 @@ class Receipt(models.Model):
         blank=True,
         related_name="receipts"
     )
-    nip_number = models.CharField(max_length=10)
-    print_number = models.PositiveIntegerField()
-    date_printed = models.DateTimeField()
+    print_number = models.PositiveIntegerField(editable=False)
+    date_printed = models.DateTimeField(auto_now_add=True)
     currency = models.CharField(max_length=10)
-    receipt_number = models.PositiveIntegerField()
+    receipt_number = models.PositiveIntegerField(editable=False)
     checkout_number = models.CharField(max_length=50, null=True, blank=True)
     buyer_nip = models.CharField(max_length=10, null=True, blank=True)
 
@@ -60,4 +59,3 @@ class Product(models.Model):
 
     def get_full_price(self):
         return round(self.quantity * (self.unit_price - self.discount_value), 2)
-
