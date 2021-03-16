@@ -75,6 +75,7 @@ class CompanySerializer(serializers.ModelSerializer):
 
 class ReceiptSerializer(serializers.ModelSerializer):
 
+    company = CompanySerializer(read_only=True)
     company_name = serializers.CharField(max_length=150, write_only=True)
     products = ProductSerializer(many=True)
     total_price = serializers.SerializerMethodField("get_total_price")
@@ -133,4 +134,3 @@ class ReceiptSerializer(serializers.ModelSerializer):
     class Meta:
         model = Receipt
         fields = "__all__"
-        read_only_fields = ("company",)
