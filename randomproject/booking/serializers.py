@@ -164,12 +164,16 @@ class InvoiceSerializer(serializers.ModelSerializer):
 
     products = InvoiceProductSerializer(many=True)
     company = CompanySerializer(read_only=True)
-    company_name = serializers.CharField(max_length=150)
+    company_name = serializers.CharField(max_length=150, write_only=True)
+    buyer_address = AddressSerializer()
+    total_price = serializers.SerializerMethodField("get_total_price")
 
     def create(self, validated_data):
         products = validated_data.pop("products")
         company_name = validated_data.pop("company_name")
+        buyer_address = validated_data.pop("buyer_address")
         with transaction.atomic():
+            buyer_address = Address.objects.create(**buyer_address)
             company = get_object_or_404(Company, name=company_name)
             now = timezone.now()
             last_invoice = Invoice.objects.filter(seller=company).order_by("-date_created").first()
@@ -185,6 +189,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
                 **validated_data,
                 invoice_number=invoice_number,
                 seller=company,
+                buyer_address=buyer_address
             )
             for product in products:
                 InvoiceProduct.objects.create(**product, invoice=invoice)
@@ -195,3 +200,23 @@ class InvoiceSerializer(serializers.ModelSerializer):
         if not len(products):
             raise ValidationError("This field is required")
         return products
+
+    def validate(self, data):
+        nip = data.get('buyer_nip')
+        pesel = data.get('buyer_pesel')
+        if nip and not pesel:
+            if not nip.isnumeric() or len(nip) != 10:
+                raise ValidationError("Invalid NIP number")
+            return data
+        elif pesel and not nip:
+            if not pesel.isnumeric() or len(pesel) != 11:
+                raise ValidationError("Invalid PESEL number")
+            return data
+        else:
+            raise ValidationError("Either nip or pesel must be included")
+
+    def get_total_price(self, receipt):
+        total_price = 0
+        for product in receipt.products.all():
+            total_price += product.get_full_price()
+        return total_price

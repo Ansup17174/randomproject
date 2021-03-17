@@ -2,8 +2,6 @@ from django.db import models
 from uuid import uuid4
 from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator
-from django.contrib.contenttypes.models import ContentType
-from django.contrib.contenttypes.fields import GenericForeignKey
 
 
 class Address(models.Model):
@@ -24,14 +22,6 @@ class Company(models.Model):
     name = models.CharField(max_length=150, unique=True)
     company_address = models.ForeignKey(Address, on_delete=models.PROTECT, related_name="companies")
     nip_number = models.CharField(max_length=10)
-
-
-class Person(models.Model):
-    id = models.UUIDField(primary_key=True, editable=False, default=uuid4)
-    first_name = models.CharField(max_length=100)
-    last_name = models.CharField(max_length=150)
-    pesel_number = models.CharField(max_length=11, unique=True)
-    address = models.ForeignKey(Address, on_delete=models.PROTECT)
 
 
 class Receipt(models.Model):
@@ -56,12 +46,14 @@ class Receipt(models.Model):
 class Invoice(models.Model):
     id = models.UUIDField(primary_key=True, editable=False, default=uuid4)
     seller = models.ForeignKey(Company, on_delete=models.PROTECT)
-    content_type = models.ForeignKey(ContentType, on_delete=models.PROTECT)
-    object_id = models.UUIDField()
-    buyer = GenericForeignKey('content_type', 'object_id')
+    buyer_name = models.CharField(max_length=100)
+    buyer_address = models.ForeignKey(Address, on_delete=models.PROTECT)
+    buyer_nip = models.CharField(max_length=10, null=True, blank=True)
+    buyer_pesel = models.CharField(max_length=11, null=True, blank=True)
     date_created = models.DateField(auto_now_add=True)
     date_finished = models.DateField()
     invoice_number = models.CharField(max_length=20, editable=False)
+    currency = models.CharField(max_length=10)
 
 
 class ReceiptProduct(models.Model):
@@ -84,7 +76,7 @@ class ReceiptProduct(models.Model):
 
 class InvoiceProduct(models.Model):
     id = models.UUIDField(primary_key=True, editable=False, default=uuid4)
-    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE)
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="products")
     name = models.CharField(max_length=200)
     unit = models.CharField(max_length=15)
     quantity = models.DecimalField(max_digits=20, decimal_places=3, validators=[MinValueValidator(0)])
@@ -96,3 +88,6 @@ class InvoiceProduct(models.Model):
         default=0
     )
     vat_tax = models.DecimalField(max_digits=5, decimal_places=2, validators=[MinValueValidator(0)])
+
+    def get_full_price(self):
+        return round(self.quantity * (self.unit_price - self.discount_value), 2)
