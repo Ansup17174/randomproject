@@ -43,19 +43,6 @@ class Receipt(models.Model):
     buyer_nip = models.CharField(max_length=10, null=True, blank=True)
 
 
-class Invoice(models.Model):
-    id = models.UUIDField(primary_key=True, editable=False, default=uuid4)
-    seller = models.ForeignKey(Company, on_delete=models.PROTECT)
-    buyer_name = models.CharField(max_length=100)
-    buyer_address = models.ForeignKey(Address, on_delete=models.PROTECT)
-    buyer_nip = models.CharField(max_length=10, null=True, blank=True)
-    buyer_pesel = models.CharField(max_length=11, null=True, blank=True)
-    date_created = models.DateField(auto_now_add=True)
-    date_finished = models.DateField()
-    invoice_number = models.CharField(max_length=20, editable=False, unique=True)
-    currency = models.CharField(max_length=10)
-
-
 class ReceiptProduct(models.Model):
     id = models.UUIDField(primary_key=True, editable=False, default=uuid4)
     name = models.CharField(max_length=50)
@@ -72,6 +59,19 @@ class ReceiptProduct(models.Model):
 
     def get_full_price(self):
         return round(self.quantity * (self.unit_price - self.discount_value), 2)
+
+
+class Invoice(models.Model):
+    id = models.UUIDField(primary_key=True, editable=False, default=uuid4)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT)
+    buyer_name = models.CharField(max_length=100)
+    buyer_address = models.ForeignKey(Address, on_delete=models.PROTECT)
+    buyer_nip = models.CharField(max_length=10, null=True, blank=True)
+    buyer_pesel = models.CharField(max_length=11, null=True, blank=True)
+    date_created = models.DateTimeField(auto_now_add=True)
+    date_finished = models.DateField()
+    invoice_number = models.CharField(max_length=20, editable=False)
+    currency = models.CharField(max_length=10)
 
 
 class InvoiceProduct(models.Model):

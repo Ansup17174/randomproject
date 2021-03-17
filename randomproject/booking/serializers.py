@@ -7,51 +7,6 @@ from collections import defaultdict
 from django.utils import timezone
 
 
-class ReceiptProductSerializer(serializers.ModelSerializer):
-
-    def validate_vat_type(self, vat_type):
-        if vat_type.upper() not in "ABCDE":
-            raise ValidationError("Invalid vat type, must be either A, B, C, D or E")
-        return vat_type.upper()
-
-    def get_price(self, product):
-        return round(product.quantity * product.unit_price, 2)
-
-    def get_total_discount_value(self, product):
-        return round(product.quantity * product.discount_value, 2)
-
-    def get_full_price(self, product):
-        return round(product.quantity * (product.unit_price - product.discount_value), 2)
-
-    price = serializers.SerializerMethodField("get_price")
-    total_discount_value = serializers.SerializerMethodField("get_total_discount_value")
-    full_price = serializers.SerializerMethodField("get_full_price")
-
-    class Meta:
-        model = ReceiptProduct
-        exclude = ("id", "receipt")
-
-
-class InvoiceProductSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = InvoiceProduct
-        exclude = ("invoice", "id")
-
-    net_price = serializers.SerializerMethodField("get_net_price")
-    tax_value = serializers.SerializerMethodField("get_vat_tax")
-    gross_price = serializers.SerializerMethodField("get_gross_price")
-
-    def get_net_price(self, product):
-        return product.get_net_price()
-
-    def get_vat_tax(self, product):
-        return product.get_vat_tax()
-
-    def get_gross_price(self, product):
-        return product.get_gross_price()
-
-
 class AddressSerializer(serializers.ModelSerializer):
 
     class Meta:
@@ -62,10 +17,6 @@ class AddressSerializer(serializers.ModelSerializer):
 class CompanySerializer(serializers.ModelSerializer):
 
     company_address = AddressSerializer()
-
-    class Meta:
-        model = Company
-        exclude = ("owner", "id")
 
     def validate_nip_number(self, nip_number):
         if not nip_number.isnumeric() or len(nip_number) != 10:
@@ -91,6 +42,35 @@ class CompanySerializer(serializers.ModelSerializer):
                 setattr(instance, name, value)
             instance.save()
         return instance
+
+    class Meta:
+        model = Company
+        exclude = ("owner", "id")
+
+
+class ReceiptProductSerializer(serializers.ModelSerializer):
+
+    price = serializers.SerializerMethodField("get_price")
+    total_discount_value = serializers.SerializerMethodField("get_total_discount_value")
+    full_price = serializers.SerializerMethodField("get_full_price")
+
+    def validate_vat_type(self, vat_type):
+        if vat_type.upper() not in "ABCDE":
+            raise ValidationError("Invalid vat type, must be either A, B, C, D or E")
+        return vat_type.upper()
+
+    def get_price(self, product):
+        return round(product.quantity * product.unit_price, 2)
+
+    def get_total_discount_value(self, product):
+        return round(product.quantity * product.discount_value, 2)
+
+    def get_full_price(self, product):
+        return round(product.quantity * (product.unit_price - product.discount_value), 2)
+
+    class Meta:
+        model = ReceiptProduct
+        exclude = ("id", "receipt")
 
 
 class ReceiptSerializer(serializers.ModelSerializer):
@@ -164,30 +144,47 @@ class ReceiptSerializer(serializers.ModelSerializer):
         exclude = ("id",)
 
 
-class InvoiceSerializer(serializers.ModelSerializer):
+class InvoiceProductSerializer(serializers.ModelSerializer):
+
+    net_price = serializers.SerializerMethodField("get_net_price")
+    tax_value = serializers.SerializerMethodField("get_vat_tax")
+    gross_price = serializers.SerializerMethodField("get_gross_price")
+
+    def get_net_price(self, product):
+        return product.get_net_price()
+
+    def get_vat_tax(self, product):
+        return product.get_vat_tax()
+
+    def get_gross_price(self, product):
+        return product.get_gross_price()
 
     class Meta:
-        model = Invoice
-        exclude = ("seller", "id")
+        model = InvoiceProduct
+        exclude = ("invoice", "id")
+
+
+class InvoiceSerializer(serializers.ModelSerializer):
 
     products = InvoiceProductSerializer(many=True)
     company = CompanySerializer(read_only=True)
     company_name = serializers.CharField(max_length=150, write_only=True)
     buyer_address = AddressSerializer()
     tax_data = serializers.SerializerMethodField("get_tax_data")
+    total_gross_price = serializers.SerializerMethodField("get_total_gross_price")
 
     def create(self, validated_data):
+        user = self.context.get('request').user
         products = validated_data.pop("products")
         company_name = validated_data.pop("company_name")
         buyer_address = validated_data.pop("buyer_address")
         with transaction.atomic():
             buyer_address = Address.objects.create(**buyer_address)
-            company = get_object_or_404(Company, name=company_name)
+            company = get_object_or_404(Company, name=company_name, owner=user)
             now = timezone.now()
-            last_invoice = Invoice.objects.filter(seller=company).order_by("-invoice_number").first()
+            last_invoice = Invoice.objects.filter(company=company).order_by("-date_created").first()
             invoice_count = 1
             if last_invoice is not None:
-                print(last_invoice.invoice_number)
                 year = last_invoice.date_created.year
                 month = last_invoice.date_created.month
                 if now.year == year and now.month == month:
@@ -197,7 +194,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
             invoice = Invoice.objects.create(
                 **validated_data,
                 invoice_number=invoice_number,
-                seller=company,
+                company=company,
                 buyer_address=buyer_address
             )
             for product in products:
@@ -225,13 +222,31 @@ class InvoiceSerializer(serializers.ModelSerializer):
             raise ValidationError("Either nip or pesel must be included")
 
     def get_tax_data(self, invoice):
-        tax_data = defaultdict(float)
+        tax_data = {}
         for product in invoice.products.all():
-            tax_data[str(product.vat_tax)] += product.get_vat_tax()
+            total_net_price = product.get_net_price()
+            tax_value = product.get_vat_tax()
+            total_gross_price = product.get_gross_price()
+            vat_key = float(product.vat_tax)
+            if vat_key not in tax_data:
+                tax_data[vat_key] = {
+                    "total_net_price": total_net_price,
+                    "tax_value": tax_value,
+                    "total_gross_price": total_gross_price
+                }
+            else:
+                vat_type = tax_data[vat_key]
+                vat_type['total_net_price'] += total_net_price
+                vat_type['tax_value'] += tax_value
+                vat_type['total_gross_price'] += total_gross_price
         return tax_data
 
-    def get_total_price(self, invoice):
+    def get_total_gross_price(self, invoice):
         total_price = 0
         for product in invoice.products.all():
             total_price += product.get_gross_price()
         return total_price
+
+    class Meta:
+        model = Invoice
+        exclude = ("id",)
