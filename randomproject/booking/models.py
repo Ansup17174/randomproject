@@ -52,7 +52,7 @@ class Invoice(models.Model):
     buyer_pesel = models.CharField(max_length=11, null=True, blank=True)
     date_created = models.DateField(auto_now_add=True)
     date_finished = models.DateField()
-    invoice_number = models.CharField(max_length=20, editable=False)
+    invoice_number = models.CharField(max_length=20, editable=False, unique=True)
     currency = models.CharField(max_length=10)
 
 
@@ -80,7 +80,7 @@ class InvoiceProduct(models.Model):
     name = models.CharField(max_length=200)
     unit = models.CharField(max_length=15)
     quantity = models.DecimalField(max_digits=20, decimal_places=3, validators=[MinValueValidator(0)])
-    unit_price = models.DecimalField(max_digits=20, decimal_places=3, validators=[MinValueValidator(0)])
+    unit_price = models.DecimalField(max_digits=20, decimal_places=2, validators=[MinValueValidator(0)])
     discount_value = models.DecimalField(
         max_digits=20,
         decimal_places=3,
@@ -89,5 +89,11 @@ class InvoiceProduct(models.Model):
     )
     vat_tax = models.DecimalField(max_digits=5, decimal_places=2, validators=[MinValueValidator(0)])
 
-    def get_full_price(self):
-        return round(self.quantity * (self.unit_price - self.discount_value), 2)
+    def get_net_price(self):
+        return round(self.quantity * self.unit_price, 2)
+
+    def get_vat_tax(self):
+        return round(float(self.get_net_price()) * float(self.vat_tax) / 100, 2)
+
+    def get_gross_price(self):
+        return float(self.get_net_price()) + self.get_vat_tax()

@@ -29,34 +29,34 @@ class ReceiptProductSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ReceiptProduct
-        exclude = ("receipt",)
+        exclude = ("id", "receipt")
 
 
 class InvoiceProductSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = InvoiceProduct
-        exclude = ("invoice",)
+        exclude = ("invoice", "id")
 
-    price = serializers.SerializerMethodField("get_price")
-    total_discount_value = serializers.SerializerMethodField("get_total_discount_value")
-    full_price = serializers.SerializerMethodField("get_full_price")
+    net_price = serializers.SerializerMethodField("get_net_price")
+    tax_value = serializers.SerializerMethodField("get_vat_tax")
+    gross_price = serializers.SerializerMethodField("get_gross_price")
 
-    def get_price(self, product):
-        return round(product.unit_price * product.quantity, 2)
+    def get_net_price(self, product):
+        return product.get_net_price()
 
-    def get_total_discount_value(self, product):
-        return round(product.quantity * product.discount_value, 2)
+    def get_vat_tax(self, product):
+        return product.get_vat_tax()
 
-    def get_full_price(self, product):
-        return round(product.quantity * (product.unit_price - product.discount_value), 2)
+    def get_gross_price(self, product):
+        return product.get_gross_price()
 
 
 class AddressSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Address
-        fields = "__all__"
+        exclude = ("id",)
 
 
 class CompanySerializer(serializers.ModelSerializer):
@@ -65,7 +65,7 @@ class CompanySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Company
-        exclude = ("owner",)
+        exclude = ("owner", "id")
 
     def validate_nip_number(self, nip_number):
         if not nip_number.isnumeric() or len(nip_number) != 10:
@@ -97,6 +97,7 @@ class ReceiptSerializer(serializers.ModelSerializer):
 
     company = CompanySerializer(read_only=True)
     company_name = serializers.CharField(max_length=150, write_only=True)
+    sales_point = AddressSerializer(required=False)
     products = ReceiptProductSerializer(many=True)
     total_price = serializers.SerializerMethodField("get_total_price")
     tax_values = serializers.SerializerMethodField("get_tax_values")
@@ -110,6 +111,7 @@ class ReceiptSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         products = validated_data.pop("products")
         company_name = validated_data.pop("company_name")
+        sales_point = validated_data.pop("sales_point")
         with transaction.atomic():
             last_receipt = Receipt.objects.filter(company__name=company_name).order_by("-print_number").first()
             print_number = 1
@@ -125,6 +127,10 @@ class ReceiptSerializer(serializers.ModelSerializer):
                 print_number=print_number,
                 receipt_number=print_number
             )
+            if sales_point is not None:
+                sales_point_address = Address.objects.create(**sales_point)
+                receipt.sales_point = sales_point_address
+                receipt.save()
             for product in products:
                 ReceiptProduct.objects.create(**product, receipt=receipt)
             receipt.refresh_from_db()
@@ -140,9 +146,11 @@ class ReceiptSerializer(serializers.ModelSerializer):
         vat_types = {"A": 0.23, "B": 0.08, "C": 0.05, "D": 0.00, "E": 1}
         tax_values = defaultdict(float)
         for product in receipt.products.all():
-            if product.vat_type not in vat_types:
+            if product.vat_type == "E":
                 continue
-            tax_values[product.vat_type] += round(float(product.get_full_price()) * vat_types[product.vat_type], 2)
+            full_price = product.get_full_price()
+            tax_value = round(float(full_price) - float(full_price) / (vat_types[product.vat_type]+1), 2)
+            tax_values[product.vat_type] += tax_value
         return tax_values
 
     def get_total_tax(self, receipt):
@@ -153,20 +161,20 @@ class ReceiptSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Receipt
-        fields = "__all__"
+        exclude = ("id",)
 
 
 class InvoiceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Invoice
-        exclude = ("seller",)
+        exclude = ("seller", "id")
 
     products = InvoiceProductSerializer(many=True)
     company = CompanySerializer(read_only=True)
     company_name = serializers.CharField(max_length=150, write_only=True)
     buyer_address = AddressSerializer()
-    total_price = serializers.SerializerMethodField("get_total_price")
+    tax_data = serializers.SerializerMethodField("get_tax_data")
 
     def create(self, validated_data):
         products = validated_data.pop("products")
@@ -176,9 +184,10 @@ class InvoiceSerializer(serializers.ModelSerializer):
             buyer_address = Address.objects.create(**buyer_address)
             company = get_object_or_404(Company, name=company_name)
             now = timezone.now()
-            last_invoice = Invoice.objects.filter(seller=company).order_by("-date_created").first()
+            last_invoice = Invoice.objects.filter(seller=company).order_by("-invoice_number").first()
             invoice_count = 1
             if last_invoice is not None:
+                print(last_invoice.invoice_number)
                 year = last_invoice.date_created.year
                 month = last_invoice.date_created.month
                 if now.year == year and now.month == month:
@@ -215,8 +224,14 @@ class InvoiceSerializer(serializers.ModelSerializer):
         else:
             raise ValidationError("Either nip or pesel must be included")
 
-    def get_total_price(self, receipt):
+    def get_tax_data(self, invoice):
+        tax_data = defaultdict(float)
+        for product in invoice.products.all():
+            tax_data[str(product.vat_tax)] += product.get_vat_tax()
+        return tax_data
+
+    def get_total_price(self, invoice):
         total_price = 0
-        for product in receipt.products.all():
-            total_price += product.get_full_price()
+        for product in invoice.products.all():
+            total_price += product.get_gross_price()
         return total_price
