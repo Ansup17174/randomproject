@@ -2,7 +2,7 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
-from .models import ReceiptProduct, Address, Receipt, Company, InvoiceProduct, Invoice
+from .models import ReceiptProduct, Address, Receipt, Company, InvoiceProduct, Invoice, InvoicePrepayment
 from collections import defaultdict
 from django.utils import timezone
 
@@ -164,10 +164,23 @@ class InvoiceProductSerializer(serializers.ModelSerializer):
         exclude = ("invoice", "id")
 
 
+class InvoicePrepaymentSerializer(serializers.ModelSerializer):
+
+    gross_price = serializers.SerializerMethodField("get_gross_price")
+
+    def get_gross_price(self, invoice_prepayment):
+        return invoice_prepayment.get_gross_price()
+
+    class Meta:
+        model = InvoicePrepayment
+        exclude = ("id", "invoice")
+
+
 class InvoiceSerializer(serializers.ModelSerializer):
 
     products = InvoiceProductSerializer(many=True)
     company = CompanySerializer(read_only=True)
+    invoice_prepayment = InvoicePrepaymentSerializer(required=False)
     company_name = serializers.CharField(max_length=150, write_only=True)
     buyer_address = AddressSerializer()
     tax_data = serializers.SerializerMethodField("get_tax_data")
@@ -178,6 +191,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
         products = validated_data.pop("products")
         company_name = validated_data.pop("company_name")
         buyer_address = validated_data.pop("buyer_address")
+        invoice_prepayment = validated_data.pop("invoice_prepayment")
         with transaction.atomic():
             buyer_address = Address.objects.create(**buyer_address)
             company = get_object_or_404(Company, name=company_name, owner=user)
@@ -199,6 +213,8 @@ class InvoiceSerializer(serializers.ModelSerializer):
             )
             for product in products:
                 InvoiceProduct.objects.create(**product, invoice=invoice)
+            if invoice_prepayment is not None:
+                InvoicePrepayment.objects.create(**invoice_prepayment, invoice=invoice)
             invoice.refresh_from_db()
         return invoice
 
@@ -219,15 +235,20 @@ class InvoiceSerializer(serializers.ModelSerializer):
                 raise ValidationError("Invalid PESEL number")
             return data
         else:
-            raise ValidationError("Either nip or pesel must be included")
+            raise ValidationError("Either NIP or PESEL must be included")
 
     def get_tax_data(self, invoice):
-        tax_data = {}
+        tax_data = {
+            "total_net_price": 0,
+            "total_tax_value": 0
+        }
         for product in invoice.products.all():
             total_net_price = product.get_net_price()
             tax_value = product.get_vat_tax()
             total_gross_price = product.get_gross_price()
             vat_key = float(product.vat_tax)
+            tax_data['total_net_price'] += total_net_price
+            tax_data['total_tax_value'] += tax_value
             if vat_key not in tax_data:
                 tax_data[vat_key] = {
                     "total_net_price": total_net_price,

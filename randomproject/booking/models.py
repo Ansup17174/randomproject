@@ -72,6 +72,8 @@ class Invoice(models.Model):
     date_finished = models.DateField()
     invoice_number = models.CharField(max_length=20, editable=False)
     currency = models.CharField(max_length=10)
+    is_prepayment_invoice = models.BooleanField(default=False)
+    previous_prepayment = models.UUIDField(null=True, blank=True)
 
 
 class InvoiceProduct(models.Model):
@@ -87,7 +89,7 @@ class InvoiceProduct(models.Model):
         validators=[MinValueValidator(0)],
         default=0
     )
-    vat_tax = models.DecimalField(max_digits=5, decimal_places=2, validators=[MinValueValidator(0)])
+    vat_tax = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
 
     def get_net_price(self):
         return round(self.quantity * self.unit_price, 2)
@@ -97,3 +99,16 @@ class InvoiceProduct(models.Model):
 
     def get_gross_price(self):
         return float(self.get_net_price()) + self.get_vat_tax()
+
+
+class InvoicePrepayment(models.Model):
+    id = models.UUIDField(primary_key=True, editable=False, default=uuid4)
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="prepayment_invoices")
+    net_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    vat_tax = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+
+    def get_tax_value(self):
+        return round(float(self.net_price) * (float(self.vat_tax) / 100), 2)
+
+    def get_gross_price(self):
+        return round(float(self.net_price) + self.get_tax_value(), 2)
