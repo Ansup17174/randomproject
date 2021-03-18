@@ -3,7 +3,7 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from .serializers import ReceiptSerializer, CompanySerializer, InvoiceSerializer
 from .models import Receipt, Company, Invoice
-from .filters import ReceiptFilter
+from .filters import ReceiptFilter, InvoiceFilter
 
 
 class CompanyViewSet(ModelViewSet):
@@ -21,8 +21,9 @@ class InvoiceViewSet(ModelViewSet):
 
     serializer_class = InvoiceSerializer
     filter_backends = [DjangoFilterBackend, OrderingFilter]
-    # ordering_fields = ["buyer_name", "buyer_nip", "buyer_pesel", "date_created", "date_finished"
-    #                    "invoice_number", "currency", "is_prepayment"]
+    filterset_class = InvoiceFilter
+    ordering_fields = ["buyer_name", "buyer_nip", "buyer_pesel", "date_created", "date_finished"
+                       "invoice_number", "currency", "is_prepayment"]
 
     def get_queryset(self):
         return Invoice.objects.filter(company__owner=self.request.user)
