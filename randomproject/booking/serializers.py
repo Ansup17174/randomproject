@@ -168,8 +168,8 @@ class InvoicePrepaymentSerializer(serializers.ModelSerializer):
 
     gross_price = serializers.SerializerMethodField("get_gross_price")
 
-    def get_gross_price(self, invoice_prepayment):
-        return invoice_prepayment.get_gross_price()
+    def get_gross_price(self, prepayment):
+        return prepayment.get_gross_price()
 
     class Meta:
         model = InvoicePrepayment
@@ -180,10 +180,11 @@ class InvoiceSerializer(serializers.ModelSerializer):
 
     products = InvoiceProductSerializer(many=True)
     company = CompanySerializer(read_only=True)
-    invoice_prepayment = InvoicePrepaymentSerializer(required=False)
+    prepayments = InvoicePrepaymentSerializer(many=True)
     company_name = serializers.CharField(max_length=150, write_only=True)
     buyer_address = AddressSerializer()
     tax_data = serializers.SerializerMethodField("get_tax_data")
+    prepayments_data = serializers.SerializerMethodField("get_prepayments_data")
     total_gross_price = serializers.SerializerMethodField("get_total_gross_price")
 
     def create(self, validated_data):
@@ -191,7 +192,8 @@ class InvoiceSerializer(serializers.ModelSerializer):
         products = validated_data.pop("products")
         company_name = validated_data.pop("company_name")
         buyer_address = validated_data.pop("buyer_address")
-        invoice_prepayment = validated_data.pop("invoice_prepayment")
+        prepayment = validated_data.pop("prepayment", None)
+        is_prepayment = validated_data.get("is_prepayment")
         with transaction.atomic():
             buyer_address = Address.objects.create(**buyer_address)
             company = get_object_or_404(Company, name=company_name, owner=user)
@@ -211,10 +213,13 @@ class InvoiceSerializer(serializers.ModelSerializer):
                 company=company,
                 buyer_address=buyer_address
             )
+            if prepayment is not None and is_prepayment:
+                InvoicePrepayment.objects.create(**prepayment, invoice=invoice)
+            else:
+                invoice.is_prepayment = False
+                invoice.save()
             for product in products:
                 InvoiceProduct.objects.create(**product, invoice=invoice)
-            if invoice_prepayment is not None:
-                InvoicePrepayment.objects.create(**invoice_prepayment, invoice=invoice)
             invoice.refresh_from_db()
         return invoice
 
@@ -226,16 +231,20 @@ class InvoiceSerializer(serializers.ModelSerializer):
     def validate(self, data):
         nip = data.get('buyer_nip')
         pesel = data.get('buyer_pesel')
+        if data.get("is_prepayment"):
+            if not data.get('prepayments'):
+                raise ValidationError('You must provide invoice prepayments')
+            if not len(data['prepayments']):
+                raise ValidationError("You must provide invoice prepayments")
         if nip and not pesel:
             if not nip.isnumeric() or len(nip) != 10:
                 raise ValidationError("Invalid NIP number")
-            return data
         elif pesel and not nip:
             if not pesel.isnumeric() or len(pesel) != 11:
                 raise ValidationError("Invalid PESEL number")
-            return data
         else:
             raise ValidationError("Either NIP or PESEL must be included")
+        return data
 
     def get_tax_data(self, invoice):
         tax_data = {
@@ -261,6 +270,31 @@ class InvoiceSerializer(serializers.ModelSerializer):
                 vat_type['tax_value'] += tax_value
                 vat_type['total_gross_price'] += total_gross_price
         return tax_data
+
+    def get_prepayments_data(self, invoice):
+        prepayments_data = {
+            "total_net_price": 0,
+            "total_tax_value": 0,
+            "total_gross_price": 0
+        }
+        for prepayment in invoice.prepayments.all():
+            total_gross_price = prepayment.get_gross_price()
+            vat_key = float(prepayment.vat_tax)
+            prepayments_data['total_net_price'] += prepayment.net_price
+            prepayments_data['total_tax_value'] += prepayment.get_tax_value()
+            prepayments_data['total_gross_price'] += prepayment.get_gross_price()
+            if vat_key not in prepayments_data:
+                prepayments_data[vat_key] = {
+                    "total_net_price": prepayment.net_price,
+                    "tax_value": prepayment.get_tax_value(),
+                    "total_gross_price": prepayment.get_gross_price()
+                }
+            else:
+                vat_type = prepayments_data[vat_key]
+                vat_type['total_net_price'] += prepayment.net_price
+                vat_type['tax_value'] += prepayment.get_tax_value()
+                vat_type['total_gross_price'] += prepayment.get_gross_price()
+        return prepayments_data
 
     def get_total_gross_price(self, invoice):
         total_price = 0
