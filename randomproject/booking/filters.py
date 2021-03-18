@@ -25,4 +25,4 @@ class InvoiceFilter(filters.FilterSet):
 
     class Meta:
         model = Invoice
-        fields = ["date_created", "date_finished", "is_prepayment"]
+        exclude = ("id", "company")
