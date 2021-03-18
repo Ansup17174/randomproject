@@ -39,3 +39,4 @@ class ReceiptViewSet(ModelViewSet):
 
     def get_queryset(self):
         return Receipt.objects.filter(company__owner=self.request.user)
+
