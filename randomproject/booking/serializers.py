@@ -1,7 +1,7 @@
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, NotFound
 from .models import ReceiptProduct, Address, Receipt, Company, InvoiceProduct, Invoice, InvoicePrepayment
 from collections import defaultdict
 from django.utils import timezone
@@ -180,7 +180,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
 
     products = InvoiceProductSerializer(many=True)
     company = CompanySerializer(read_only=True)
-    prepayments = InvoicePrepaymentSerializer(many=True)
+    prepayments = InvoicePrepaymentSerializer(many=True, required=False)
     company_name = serializers.CharField(max_length=150, write_only=True)
     buyer_address = AddressSerializer()
     tax_data = serializers.SerializerMethodField("get_tax_data")
@@ -192,7 +192,8 @@ class InvoiceSerializer(serializers.ModelSerializer):
         products = validated_data.pop("products")
         company_name = validated_data.pop("company_name")
         buyer_address = validated_data.pop("buyer_address")
-        prepayment = validated_data.pop("prepayment", None)
+        prepayments = validated_data.pop("prepayments", None)
+        previous_prepayment = validated_data.pop("previous_prepayment", None)
         is_prepayment = validated_data.get("is_prepayment")
         with transaction.atomic():
             buyer_address = Address.objects.create(**buyer_address)
@@ -213,13 +214,20 @@ class InvoiceSerializer(serializers.ModelSerializer):
                 company=company,
                 buyer_address=buyer_address
             )
-            if prepayment is not None and is_prepayment:
-                InvoicePrepayment.objects.create(**prepayment, invoice=invoice)
+            if is_prepayment:
+                for prepayment in prepayments:
+                    InvoicePrepayment.objects.create(**prepayment, invoice=invoice)
+                if previous_prepayment is not None:
+                    if Invoice.objects.filter(company=company, invoice_number=previous_prepayment, is_prepayment=True)\
+                            .exists():
+                        invoice.previous_prepayment = previous_prepayment
+                    else:
+                        raise NotFound(f"No prepayments with invoice number {previous_prepayment}")
             else:
                 invoice.is_prepayment = False
-                invoice.save()
             for product in products:
                 InvoiceProduct.objects.create(**product, invoice=invoice)
+            invoice.save()
             invoice.refresh_from_db()
         return invoice
 
@@ -272,13 +280,14 @@ class InvoiceSerializer(serializers.ModelSerializer):
         return tax_data
 
     def get_prepayments_data(self, invoice):
+        if not invoice.is_prepayment:
+            return None
         prepayments_data = {
             "total_net_price": 0,
             "total_tax_value": 0,
             "total_gross_price": 0
         }
         for prepayment in invoice.prepayments.all():
-            total_gross_price = prepayment.get_gross_price()
             vat_key = float(prepayment.vat_tax)
             prepayments_data['total_net_price'] += prepayment.net_price
             prepayments_data['total_tax_value'] += prepayment.get_tax_value()

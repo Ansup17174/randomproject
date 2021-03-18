@@ -73,7 +73,7 @@ class Invoice(models.Model):
     invoice_number = models.CharField(max_length=20, editable=False)
     currency = models.CharField(max_length=10)
     is_prepayment = models.BooleanField(default=False)
-    previous_prepayment = models.UUIDField(null=True, blank=True)
+    previous_prepayment = models.CharField(max_length=30, null=True, blank=True)
 
 
 class InvoiceProduct(models.Model):

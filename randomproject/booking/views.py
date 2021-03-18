@@ -3,14 +3,6 @@ from .serializers import ReceiptSerializer, CompanySerializer, InvoiceSerializer
 from .models import Receipt, Company, Invoice
 
 
-class ReceiptViewSet(ModelViewSet):
-
-    serializer_class = ReceiptSerializer
-
-    def get_queryset(self):
-        return Receipt.objects.filter(company__owner=self.request.user)
-
-
 class CompanyViewSet(ModelViewSet):
 
     serializer_class = CompanySerializer
@@ -25,3 +17,11 @@ class InvoiceViewSet(ModelViewSet):
 
     def get_queryset(self):
         return Invoice.objects.filter(company__owner=self.request.user)
+
+
+class ReceiptViewSet(ModelViewSet):
+
+    serializer_class = ReceiptSerializer
+
+    def get_queryset(self):
+        return Receipt.objects.filter(company__owner=self.request.user)
