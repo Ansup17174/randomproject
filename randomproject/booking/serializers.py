@@ -79,9 +79,7 @@ class ReceiptSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(max_length=150, write_only=True)
     sales_point = AddressSerializer(required=False)
     products = ReceiptProductSerializer(many=True)
-    total_price = serializers.SerializerMethodField("get_total_price")
     tax_values = serializers.SerializerMethodField("get_tax_values")
-    total_tax = serializers.SerializerMethodField("get_total_tax")
 
     def validate_products(self, products):
         if not len(products):
@@ -110,10 +108,14 @@ class ReceiptSerializer(serializers.ModelSerializer):
             if sales_point is not None:
                 sales_point_address = Address.objects.create(**sales_point)
                 receipt.sales_point = sales_point_address
-                receipt.save()
+            gross_price = 0
             for product in products:
-                ReceiptProduct.objects.create(**product, receipt=receipt)
-            receipt.refresh_from_db()
+                product_model = ReceiptProduct.objects.create(**product, receipt=receipt)
+                gross_price += product_model.get_full_price()
+            receipt.gross_price = gross_price
+            total_tax = self.get_total_tax(receipt)
+            receipt.total_tax = total_tax
+            receipt.save()
         return receipt
 
     def get_total_price(self, receipt):
@@ -185,7 +187,6 @@ class InvoiceSerializer(serializers.ModelSerializer):
     buyer_address = AddressSerializer()
     tax_data = serializers.SerializerMethodField("get_tax_data")
     prepayments_data = serializers.SerializerMethodField("get_prepayments_data")
-    total_gross_price = serializers.SerializerMethodField("get_total_gross_price")
 
     def create(self, validated_data):
         user = self.context.get('request').user
@@ -225,10 +226,18 @@ class InvoiceSerializer(serializers.ModelSerializer):
                         raise NotFound(f"No prepayments with invoice number {previous_prepayment}")
             else:
                 invoice.is_prepayment = False
+            net_price = 0
+            total_tax = 0
+            gross_price = 0
             for product in products:
-                InvoiceProduct.objects.create(**product, invoice=invoice)
+                product_model = InvoiceProduct.objects.create(**product, invoice=invoice)
+                net_price += product_model.get_net_price()
+                total_tax += product_model.get_vat_tax()
+                gross_price += product_model.get_gross_price()
+            invoice.net_price = net_price
+            invoice.total_tax += total_tax
+            invoice.gross_price += gross_price
             invoice.save()
-            invoice.refresh_from_db()
         return invoice
 
     def validate_products(self, products):

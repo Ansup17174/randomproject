@@ -20,6 +20,7 @@ class Company(models.Model):
     id = models.UUIDField(primary_key=True, editable=False, default=uuid4)
     owner = models.ForeignKey(User, on_delete=models.PROTECT, related_name="companies")
     name = models.CharField(max_length=150, unique=True)
+    website = models.CharField(max_length=100, null=True, blank=True)
     company_address = models.ForeignKey(Address, on_delete=models.PROTECT, related_name="companies")
     nip_number = models.CharField(max_length=10)
 
@@ -38,6 +39,8 @@ class Receipt(models.Model):
     print_number = models.PositiveIntegerField(editable=False)
     date_created = models.DateTimeField(auto_now_add=True)
     currency = models.CharField(max_length=10)
+    total_tax = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)], default=0)
+    gross_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)], default=0)
     receipt_number = models.PositiveIntegerField(editable=False)
     checkout_number = models.CharField(max_length=50, null=True, blank=True)
     buyer_nip = models.CharField(max_length=10, null=True, blank=True)
@@ -72,7 +75,11 @@ class Invoice(models.Model):
     date_finished = models.DateField()
     invoice_number = models.CharField(max_length=20, editable=False)
     currency = models.CharField(max_length=10)
+    net_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)], default=0)
+    total_tax = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)], default=0)
+    gross_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)], default=0)
     is_prepayment = models.BooleanField(default=False)
+    is_paid = models.BooleanField()
     previous_prepayment = models.CharField(max_length=30, null=True, blank=True)
 
 

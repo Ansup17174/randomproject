@@ -1,9 +1,13 @@
 from rest_framework.viewsets import ModelViewSet
+from rest_framework.views import APIView
 from rest_framework.filters import SearchFilter, OrderingFilter
+from rest_framework.exceptions import NotAcceptable
+from django.http import StreamingHttpResponse
 from django_filters.rest_framework import DjangoFilterBackend
 from .serializers import ReceiptSerializer, CompanySerializer, InvoiceSerializer
 from .models import Receipt, Company, Invoice
 from .filters import ReceiptFilter, InvoiceFilter
+import csv
 
 
 class CompanyViewSet(ModelViewSet):
@@ -39,4 +43,33 @@ class ReceiptViewSet(ModelViewSet):
 
     def get_queryset(self):
         return Receipt.objects.filter(company__owner=self.request.user)
+
+
+# class SalesReportView(APIView):
+#
+#     def get(self, request, doctype):
+#         if doctype not in ("invoice", "receipt"):
+#             raise NotAcceptable("Type must be invoice or receipt")
+#         with open("report.csv", "w", newline='') as file:
+#             writer = csv.writer(file)
+#             if doctype == "invoice":
+#                 fields = ["Seller", "Buyer", "Marketplace", "Country", "InvoiceId",
+#                           "TransactionTime", "MarketplaceCurrency", "NetPrice", "TotalTax", "GrossPrice"]
+#                 writer.writerow(fields)
+#                 invoices = Invoice.objects.filter(company__owner=request.user).values_list(
+#                     "company__name",
+#                     "buyer_name",
+#                     "company__website",
+#                     "company__address__country",
+#                     "id",
+#                     "date_finished",
+#                     "currency",
+#
+#                 )
+#                 rows = (for row in invoices)
+#
+#             elif doctype == "receipt":
+#                 fields = ["Seller", "ReceiptId", "Country", "TransactionTime",
+#                           "TransactionType", "MarketplaceCurrency", "NetPrice", "TotalTax", "GrossPrice"]
+
 
