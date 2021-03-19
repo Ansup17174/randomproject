@@ -1,5 +1,5 @@
 from django.urls import path, include
-from .views import ReceiptViewSet, CompanyViewSet, InvoiceViewSet
+from .views import ReceiptViewSet, CompanyViewSet, InvoiceViewSet, SalesReportView
 from rest_framework.routers import DefaultRouter
 
 receipt_router = DefaultRouter()
@@ -15,5 +15,6 @@ invoice_router.register(prefix="invoice", viewset=InvoiceViewSet, basename="invo
 urlpatterns = [
     path("", include(receipt_router.urls)),
     path("", include(company_router.urls)),
-    path("", include(invoice_router.urls))
+    path("", include(invoice_router.urls)),
+    path("report/<str:doctype>/", SalesReportView.as_view(), name="report")
 ]

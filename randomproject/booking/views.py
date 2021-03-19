@@ -45,31 +45,56 @@ class ReceiptViewSet(ModelViewSet):
         return Receipt.objects.filter(company__owner=self.request.user)
 
 
-# class SalesReportView(APIView):
-#
-#     def get(self, request, doctype):
-#         if doctype not in ("invoice", "receipt"):
-#             raise NotAcceptable("Type must be invoice or receipt")
-#         with open("report.csv", "w", newline='') as file:
-#             writer = csv.writer(file)
-#             if doctype == "invoice":
-#                 fields = ["Seller", "Buyer", "Marketplace", "Country", "InvoiceId",
-#                           "TransactionTime", "MarketplaceCurrency", "NetPrice", "TotalTax", "GrossPrice"]
-#                 writer.writerow(fields)
-#                 invoices = Invoice.objects.filter(company__owner=request.user).values_list(
-#                     "company__name",
-#                     "buyer_name",
-#                     "company__website",
-#                     "company__address__country",
-#                     "id",
-#                     "date_finished",
-#                     "currency",
-#
-#                 )
-#                 rows = (for row in invoices)
-#
-#             elif doctype == "receipt":
-#                 fields = ["Seller", "ReceiptId", "Country", "TransactionTime",
-#                           "TransactionType", "MarketplaceCurrency", "NetPrice", "TotalTax", "GrossPrice"]
+class PseudoBuffer:
+
+    def write(self, value):
+        return value
+
+
+class SalesReportView(APIView):
+
+    def get(self, request, doctype):
+        if doctype not in ("invoice", "receipt"):
+            raise NotAcceptable("Type must be invoice or receipt")
+        buffer = PseudoBuffer()
+        writer = csv.writer(buffer)
+        if doctype == "invoice":
+            fields = ["Seller", "Buyer", "Marketplace", "Country", "InvoiceId",
+                      "TransactionTime", "MarketplaceCurrency", "NetPrice", "TotalTax", "GrossPrice"]
+            invoices = list(Invoice.objects.filter(company__owner=request.user).values_list(
+                "company__name",
+                "buyer_name",
+                "company__website",
+                "company__company_address__country",
+                "id",
+                "date_finished",
+                "currency",
+                "net_price",
+                "total_tax",
+                "gross_price"
+            ))
+            invoices.insert(0, fields)
+            rows = (writer.writerow(row) for row in invoices)
+            response = StreamingHttpResponse(rows, content_type="text/csv")
+            response['Content-Disposition'] = 'attachment; filename=report.csv'
+            return response
+
+        elif doctype == "receipt":
+            fields = ["Seller", "ReceiptId", "Country", "TransactionTime",
+                      "MarketplaceCurrency", "TotalTax", "GrossPrice"]
+            receipts = list(Receipt.objects.filter(company__owner=request.user).values_list(
+                "company__name",
+                "id",
+                "company__company_address__country",
+                "date_created",
+                "currency",
+                "total_tax",
+                "gross_price"
+            ))
+            receipts.insert(0, fields)
+            rows = (writer.writerow(row) for row in receipts)
+            response = StreamingHttpResponse(rows, content_type="text/csv")
+            response['Content-Disposition'] = "attachment; filename=report.csv"
+            return response
 
 
