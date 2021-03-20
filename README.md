@@ -1,4 +1,4 @@
-How to run locally:
+<h1>Installation</h1>
 <pre>$ git clone https://github.com/Ansup17174/randomproject.git</pre>
 <pre>$ cd randomproject/randomproject</pre>
 <pre>$ python -m venv venv</pre>
