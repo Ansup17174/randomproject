@@ -17,3 +17,7 @@ Run migrations
 </br>
 Run server
 <pre>$ python manage.py runserver</pre>
+</br>
+
+<h1>API</h1>
+
