@@ -1,4 +1,5 @@
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import GenericViewSet
+from rest_framework.mixins import ListModelMixin, RetrieveModelMixin, CreateModelMixin, DestroyModelMixin
 from rest_framework.views import APIView
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.exceptions import NotAcceptable
@@ -10,7 +11,13 @@ from .filters import ReceiptFilter, InvoiceFilter
 import csv
 
 
-class CompanyViewSet(ModelViewSet):
+class CompanyViewSet(
+    GenericViewSet,
+    ListModelMixin,
+    RetrieveModelMixin,
+    CreateModelMixin,
+    DestroyModelMixin
+):
 
     serializer_class = CompanySerializer
     filter_backends = [SearchFilter, OrderingFilter]
@@ -22,7 +29,13 @@ class CompanyViewSet(ModelViewSet):
         return Company.objects.filter(owner=self.request.user)
 
 
-class InvoiceViewSet(ModelViewSet):
+class InvoiceViewSet(
+    GenericViewSet,
+    ListModelMixin,
+    RetrieveModelMixin,
+    CreateModelMixin,
+    DestroyModelMixin
+):
 
     serializer_class = InvoiceSerializer
     filter_backends = [DjangoFilterBackend, OrderingFilter]
@@ -34,7 +47,13 @@ class InvoiceViewSet(ModelViewSet):
         return Invoice.objects.filter(company__owner=self.request.user)
 
 
-class ReceiptViewSet(ModelViewSet):
+class ReceiptViewSet(
+    GenericViewSet,
+    ListModelMixin,
+    RetrieveModelMixin,
+    CreateModelMixin,
+    DestroyModelMixin
+):
 
     serializer_class = ReceiptSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
@@ -53,6 +72,11 @@ class PseudoBuffer:
 
 
 class SalesReportView(APIView):
+
+    """
+    Exports either invoice or receipt to .csv format.
+    Possible values for doctype are: invoice, receipt
+    """
 
     def get(self, request, doctype):
         if doctype not in ("invoice", "receipt"):

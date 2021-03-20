@@ -52,6 +52,7 @@ class CompanySerializer(serializers.ModelSerializer):
     class Meta:
         model = Company
         exclude = ("owner", "id")
+        ref_name = None
 
 
 class ReceiptProductSerializer(serializers.ModelSerializer):
@@ -150,7 +151,9 @@ class ReceiptSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Receipt
-        exclude = ("id",)
+        fields = "__all__"
+        ref_name = None
+        read_only_fields = ("total_tax", "gross_price")
 
 
 class InvoiceProductSerializer(serializers.ModelSerializer):
@@ -329,4 +332,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Invoice
-        exclude = ("id",)
+        fields = "__all__"
+        ref_name = None
+        write_only_fields = ("company_name",)
+        read_only_fields = ("net_price", "total_tax", "gross_price")
