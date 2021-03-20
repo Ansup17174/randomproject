@@ -5,6 +5,7 @@ from rest_framework.exceptions import ValidationError, NotFound
 from .models import ReceiptProduct, Address, Receipt, Company, InvoiceProduct, Invoice, InvoicePrepayment
 from collections import defaultdict
 from django.utils import timezone
+import re
 
 
 class AddressSerializer(serializers.ModelSerializer):
@@ -12,6 +13,11 @@ class AddressSerializer(serializers.ModelSerializer):
     class Meta:
         model = Address
         exclude = ("id",)
+
+    def validate_postCode(self, post_code):
+        if not re.match(r"\d{2}-\d{3}", post_code):
+            raise ValidationError("Invalid post code")
+        return post_code
 
 
 class CompanySerializer(serializers.ModelSerializer):
@@ -31,7 +37,7 @@ class CompanySerializer(serializers.ModelSerializer):
         return company
 
     def update(self, instance, validated_data):
-        address = validated_data.pop("company_address")
+        address = validated_data.pop("company_address", None)
         with transaction.atomic():
             if address is not None:
                 company_address = instance.company_address
@@ -79,6 +85,7 @@ class ReceiptSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(max_length=150, write_only=True)
     sales_point = AddressSerializer(required=False)
     products = ReceiptProductSerializer(many=True)
+
     tax_values = serializers.SerializerMethodField("get_tax_values")
 
     def validate_products(self, products):
@@ -89,7 +96,7 @@ class ReceiptSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         products = validated_data.pop("products")
         company_name = validated_data.pop("company_name")
-        sales_point = validated_data.pop("sales_point")
+        sales_point = validated_data.pop("sales_point", None)
         with transaction.atomic():
             last_receipt = Receipt.objects.filter(company__name=company_name).order_by("-print_number").first()
             print_number = 1

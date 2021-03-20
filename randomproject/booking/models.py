@@ -3,6 +3,8 @@ from uuid import uuid4
 from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator
 
+User = get_user_model()
+
 
 class Address(models.Model):
     id = models.UUIDField(primary_key=True, editable=False, default=uuid4)
@@ -11,9 +13,6 @@ class Address(models.Model):
     post_code = models.CharField(max_length=6)
     city = models.CharField(max_length=36)
     country = models.CharField(max_length=42)
-
-
-User = get_user_model()
 
 
 class Company(models.Model):
@@ -44,6 +43,9 @@ class Receipt(models.Model):
     receipt_number = models.PositiveIntegerField(editable=False)
     checkout_number = models.CharField(max_length=50, null=True, blank=True)
     buyer_nip = models.CharField(max_length=10, null=True, blank=True)
+
+    class Meta:
+        ordering = ['-date_created']
 
 
 class ReceiptProduct(models.Model):
@@ -81,6 +83,9 @@ class Invoice(models.Model):
     is_prepayment = models.BooleanField(default=False)
     is_paid = models.BooleanField()
     previous_prepayment = models.CharField(max_length=30, null=True, blank=True)
+
+    class Meta:
+        ordering = ['-date_created']
 
 
 class InvoiceProduct(models.Model):

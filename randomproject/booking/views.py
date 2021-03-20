@@ -14,6 +14,7 @@ class CompanyViewSet(ModelViewSet):
 
     serializer_class = CompanySerializer
     filter_backends = [SearchFilter, OrderingFilter]
+    lookup_field = "name"
     search_fields = ["name"]
     ordering_fields = ["name"]
 
