@@ -20,4 +20,4 @@ Run server
 </br>
 
 <h1>API</h1>
-
+Docs available at /swagger
